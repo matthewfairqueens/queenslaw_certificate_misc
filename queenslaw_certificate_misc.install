@@ -1,0 +1,4 @@
+<?php
+function queenslaw_certificate_misc_uninstall() {
+  \Drupal::configFactory()->getEditable('queenslaw_certificate_misc.settings')->delete();
+}

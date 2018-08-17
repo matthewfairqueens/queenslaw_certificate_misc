@@ -1,0 +1,137 @@
+<?php
+
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\Display\EntityViewDisplayInterface;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Link;
+use Drupal\Core\Url;
+use Drupal\file\Entity\File;
+use Drupal\node\Entity\Node;
+use Drupal\node\Entity\NodeType;
+use \Drupal\views\Views;
+/**
+ * Implements hook_preprocess_node().
+ *
+ * Inject the most recent post (via Views) into the Blog and Podcast teasers.
+ */
+function queenslaw_certificate_misc_preprocess_node(&$variables) {
+  $teasers = [
+    'Blog' => 'blog',
+    'Podcast' => 'podcast',
+  ];
+  $type = $variables['node']->getType();
+  $title = $variables['node']->getTitle();
+  $view_mode = $variables['view_mode'];
+  if (($type == 'page') && (array_key_exists($title, $teasers)) && (strpos($view_mode, 'teaser') !== FALSE)) {
+    $view_name = $teasers[$title];
+    $view = Views::getView($view_name);
+    $variables['content']['body'] = $view->buildRenderable('embed');
+  }
+}
+
+/**
+ * Implements hook_preprocess_field().
+ *
+ * Append a download link to audio fields.
+ */
+function queenslaw_certificate_misc_preprocess_field__node__field_audio(&$variables) {
+  if ((count($variables['items']) > 0) && (isset($variables['element']['#object']))) {
+    $entity = $variables['element']['#object'];
+    $values = $entity->get('field_audio')->getValue();
+    foreach ($values as $delta => $value) {
+      if (isset($value['target_id'])) {
+        if ($file = File::load($value['target_id'])) {
+          $file_uri = $file->getFileUri();
+          $file_url = file_url_transform_relative(file_create_url($file_uri));
+          $link = '<a href="' . $file_url . '">Download</a>';
+          //$file_url = file_create_url($file_uri);
+          //$link = Link::fromTextAndUrl(t('Download'), Url::fromUri($file_url))->toString();
+          $variables['items'][$delta]['content']['#suffix'] = $link;
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_preprocess_breadcrumb().
+ *
+ * Cache breadcrumbs per URL, otherwise all breadcrumbs for a given content type show the
+ * same item, regardless of what the current item actually is.
+ */
+function queenslaw_certificate_misc_preprocess_breadcrumb(&$variables) {
+  if (($node = \Drupal::routeMatch()->getParameter('node')) && (isset($variables['breadcrumb'])) && ($variables['breadcrumb'])) $variables['#cache']['contexts'][] = 'url';
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter() for node_form().
+ *
+ * Add a field to the node type form to enable adding a link to the related landing page
+ * to node displays.
+ */
+function queenslaw_certificate_misc_form_node_type_form_alter(&$form, FormStateInterface $form_state) {
+  $default_value = '';
+  if (isset($form['type']) && (isset($form['type']['#default_value'])) && ($form['type']['#default_value'])) {
+    $machine_name = $form['type']['#default_value'];
+    $landing_page = \Drupal::config('queenslaw_certificate_misc.settings')->get('landing_page');
+    if (isset($landing_page[$machine_name])) {
+      $default_value_nid = $landing_page[$machine_name];
+      $default_value = Node::load($default_value_nid);
+    }
+  }
+  $form['landing_page'] = [
+    '#type' => 'entity_autocomplete',
+    '#title' => t('Landing page'),
+    '#description' => t('If a landing page is provided, a link to the landing page will be available to node displays.'),
+    '#target_type' => 'node',
+    '#selection_settings' => [
+      'target_bundles' => ['page'],
+    ],
+    '#default_value' => $default_value,
+  ];
+  $form['actions']['submit']['#submit'][] = '_queenslaw_certificate_misc_bundle_landing_page';
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter() for the Mailchimp signup form in the superfooter.
+ *
+ * Make sure the form submits to the contact page, and add a placeholder to the email field.
+ */
+function queenslaw_certificate_misc_form_mailchimp_signup_subscribe_block_queens_certificate_in_law_alt_form_alter(&$form, FormStateInterface $form_state) {
+  // there's a setting for "Form destination page", but it doesn't seem to work
+  $form['#action'] = '/contact';
+  if (isset($form['mergevars']) && (isset($form['mergevars']['EMAIL'])) && (isset($form['mergevars']['EMAIL']['#title'])) && ($form['mergevars']['EMAIL']['#title'])) {
+    $form['mergevars']['EMAIL']['#attributes']['placeholder'] = $form['mergevars']['EMAIL']['#title'];
+  }
+}
+
+// Custom submit handler to save the bundle landing page to config.
+function _queenslaw_certificate_misc_bundle_landing_page($form, FormStateInterface $form_state) {
+  if (isset($form['type']) && (isset($form['type']['#default_value'])) && ($form['type']['#default_value'])) {
+    $machine_name = $form['type']['#default_value'];
+    $values = $form_state->getValues();
+    if (isset($values['landing_page']) && ($values['landing_page'])) {
+      $config = \Drupal::service('config.factory')->getEditable('queenslaw_certificate_misc.settings');
+      $landing_page = $config->get('landing_page');
+      $landing_page[$machine_name] = $values['landing_page'];
+      $config->set('landing_page', $landing_page);
+      $config->save();
+    }
+  }
+}
+
+// Create a link to the bundle landing page (called from the theme).
+function queenslaw_certificate_misc_landing_page_link($bundle) {
+  $link = FALSE;
+  if ($landing_page = \Drupal::config('queenslaw_certificate_misc.settings')->get('landing_page')) {
+    if (isset($landing_page[$bundle])) {
+      $landing_page_nid = $landing_page[$bundle];
+      $node_bundles = NodeType::loadMultiple();
+      if (isset($node_bundles[$bundle])) {
+        $bundle_name = $node_bundles[$bundle]->label();
+        $link = Link::createFromRoute($bundle_name, 'entity.node.canonical', ['node' => $landing_page_nid])->toString();
+      }
+    }
+  }
+  return $link;
+}
