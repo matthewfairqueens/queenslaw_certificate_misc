@@ -42,10 +42,8 @@ function queenslaw_certificate_misc_preprocess_field__node__field_audio(&$variab
       if (isset($value['target_id'])) {
         if ($file = File::load($value['target_id'])) {
           $file_uri = $file->getFileUri();
-          $file_url = file_url_transform_relative(file_create_url($file_uri));
-          $link = '<a href="' . $file_url . '">Download</a>';
-          //$file_url = file_create_url($file_uri);
-          //$link = Link::fromTextAndUrl(t('Download'), Url::fromUri($file_url))->toString();
+          $file_url = file_create_url($file_uri);
+          $link = Link::fromTextAndUrl(t('Download'), Url::fromUri($file_url))->toString();
           $variables['items'][$delta]['content']['#suffix'] = $link;
         }
       }
