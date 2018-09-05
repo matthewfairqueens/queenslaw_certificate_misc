@@ -97,7 +97,7 @@ function queenslaw_certificate_misc_form_node_type_form_alter(&$form, FormStateI
  */
 function queenslaw_certificate_misc_form_mailchimp_signup_subscribe_block_queens_certificate_in_law_alt_form_alter(&$form, FormStateInterface $form_state) {
   // there's a setting for "Form destination page", but it doesn't seem to work
-  $form['#action'] = '/contact';
+//  $form['#action'] = '/contact';
   if (isset($form['mergevars']) && (isset($form['mergevars']['EMAIL'])) && (isset($form['mergevars']['EMAIL']['#title'])) && ($form['mergevars']['EMAIL']['#title'])) {
     $form['mergevars']['EMAIL']['#attributes']['placeholder'] = $form['mergevars']['EMAIL']['#title'];
   }
